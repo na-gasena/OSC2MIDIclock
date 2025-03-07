@@ -2,26 +2,31 @@
 
 #include <JuceHeader.h>
 
-//==============================================================================
-/*
-    This component lives inside our window, and this is where you should put all
-    your controls and content.
-*/
-class MainComponent  : public juce::Component
+// MainComponent は OSCReceiver, Timer の機能を使う
+class MainComponent : public juce::Component,
+    public juce::OSCReceiver::ListenerWithOSCAddress<juce::OSCReceiver::MessageLoopCallback>,
+    public juce::Timer
 {
 public:
-    //==============================================================================
     MainComponent();
     ~MainComponent() override;
 
-    //==============================================================================
-    void paint (juce::Graphics&) override;
+    void paint(juce::Graphics&) override;
     void resized() override;
 
+    // OSC コールバック
+    void oscMessageReceived(const juce::OSCMessage& message) override;
+
+    // Timer コールバック
+    void timerCallback() override;
+
 private:
-    //==============================================================================
-    // Your private member variables go here...
+    // juce::OSCReceiver インスタンス
+    juce::OSCReceiver oscReceiver;
 
+    // MIDI 出力などのメンバ
+    std::unique_ptr<juce::MidiOutput> midiOutput;
+    // ... etc ...
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

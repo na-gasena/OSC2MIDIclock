@@ -1,29 +1,67 @@
 #include "MainComponent.h"
 
-//==============================================================================
 MainComponent::MainComponent()
 {
-    setSize (600, 400);
+    // OSCReceiver: ポート8000で接続
+    if (!oscReceiver.connect(8000))
+    {
+        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
+            "Error", "Could not connect to port 8000");
+    }
+    else
+    {
+        // アドレス"/avatar/parameters/HeartRate"を監視
+        oscReceiver.addListener(this, "/avatar/parameters/HeartRate");
+    }
+
+    // MIDI 出力デバイスを開く
+    auto devices = juce::MidiOutput::getAvailableDevices();
+    if (!devices.isEmpty())
+        midiOutput = juce::MidiOutput::openDevice(devices[0].identifier);
+
+    // ... そのほか初期化 ...
+
+    // Timer開始
+    startTimer(200);
+
+    setSize(600, 400);
 }
 
 MainComponent::~MainComponent()
 {
+    stopTimer();
+
+    // 切断
+    oscReceiver.disconnect();
+
+    // ... そのほか終了処理 ...
 }
 
-//==============================================================================
-void MainComponent::paint (juce::Graphics& g)
+void MainComponent::paint(juce::Graphics& g)
 {
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
-    g.setFont (juce::FontOptions (16.0f));
-    g.setColour (juce::Colours::white);
-    g.drawText ("Hello World!", getLocalBounds(), juce::Justification::centred, true);
+    g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
 }
 
 void MainComponent::resized()
 {
-    // This is called when the MainComponent is resized.
-    // If you add any child components, this is where you should
-    // update their positions.
+    // レイアウト更新
+}
+
+void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
+{
+    if (message.getAddress() == "/avatar/parameters/HeartRate")
+    {
+        if (message.size() > 0 && message[0].isInt32())
+        {
+            int value = message[0].getInt32();
+            DBG("Received BPM: " << value);
+
+            // ここで BPM を更新 -> MIDI クロックに反映
+        }
+    }
+}
+
+void MainComponent::timerCallback()
+{
+    // 定期的にUIを更新するなど
 }
