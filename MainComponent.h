@@ -32,7 +32,7 @@ private:
 
     // GUI コンポーネント
     juce::Label portNumberLabel{ {}, "UDP Port Number: " };
-    juce::Label portNumberField{ {}, "8000" };
+    juce::TextEditor portNumberField;
     juce::TextButton connectButton{ "Connect" };
     juce::TextButton clearButton{ "Clear" };
     juce::Label connectionStatusLabel;
@@ -54,3 +54,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
+

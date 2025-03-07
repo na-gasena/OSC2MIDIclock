@@ -6,19 +6,20 @@ MainComponent::MainComponent()
     portNumberLabel.setBounds(10, 18, 130, 25);
     addAndMakeVisible(portNumberLabel);
 
-    portNumberField.setEditable(true, true, true);
-    portNumberField.setBounds(140, 18, 50, 25);
+    portNumberField.setText("8000", juce::dontSendNotification);
+    portNumberField.setBounds(140, 18, 100, 25);
+    portNumberField.setInputRestrictions(5, "0123456789"); // ”Žš‚Ì‚Ý“ü—Í‰Â”\‚É‚·‚é
     addAndMakeVisible(portNumberField);
 
-    connectButton.setBounds(210, 18, 100, 25);
+    connectButton.setBounds(250, 18, 100, 25);
     addAndMakeVisible(connectButton);
     connectButton.onClick = [this] { connectButtonClicked(); };
 
-    clearButton.setBounds(320, 18, 60, 25);
+    clearButton.setBounds(360, 18, 60, 25);
     addAndMakeVisible(clearButton);
     clearButton.onClick = [this] { clearButtonClicked(); };
 
-    connectionStatusLabel.setBounds(450, 18, 240, 25);
+    connectionStatusLabel.setBounds(430, 18, 240, 25);
     updateConnectionStatusLabel();
     addAndMakeVisible(connectionStatusLabel);
 
@@ -92,7 +93,7 @@ void MainComponent::updateConnectionStatusLabel()
     juce::String text = "Status: ";
 
     if (isConnected)
-        text += "Connected to UDP port " + juce::String(8000);
+        text += "Connected to UDP port " + portNumberField.getText();
     else
         text += "Disconnected";
 
@@ -226,3 +227,4 @@ bool MainComponent::isValidOscPort(int port) const
 {
     return port > 0 && port < 65536;
 }
+
