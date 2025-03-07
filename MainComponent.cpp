@@ -49,7 +49,7 @@ void MainComponent::resized()
 
 void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
 {
-    if (message.getAddress() == "/avatar/parameters/HeartRate")
+    if (message.getAddressPattern().toString() == "/avatar/parameters/HeartRate")
     {
         if (message.size() > 0 && message[0].isInt32())
         {
