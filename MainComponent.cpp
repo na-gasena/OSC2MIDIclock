@@ -68,6 +68,8 @@ void MainComponent::resized()
 
 void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
 {
+    DBG("Received OSC Message: " + message.getAddressPattern().toString());
+
     if (message.getAddressPattern().toString() == "/avatar/parameters/HeartRate")
     {
         if (message.size() > 0 && message[0].isInt32())
@@ -121,6 +123,7 @@ void MainComponent::connectButtonClicked()
         {
             isConnected = true;
             connectButton.setButtonText("Disconnect");
+            DBG("Connected to port " << portToConnect);
         }
         else
         {
@@ -133,6 +136,7 @@ void MainComponent::connectButtonClicked()
         {
             isConnected = false;
             connectButton.setButtonText("Connect");
+            DBG("Disconnected from port");
         }
         else
         {
@@ -205,6 +209,7 @@ void MainComponent::handleConnectError(int failedPort)
         "OSC Connection error",
         "Error: could not connect to port " + juce::String(failedPort),
         "OK");
+    DBG("Error: could not connect to port " << failedPort);
 }
 
 void MainComponent::handleDisconnectError()
@@ -213,6 +218,7 @@ void MainComponent::handleDisconnectError()
         "Unknown error",
         "An unknown error occurred while trying to disconnect from UDP port.",
         "OK");
+    DBG("Unknown error occurred while trying to disconnect from UDP port.");
 }
 
 void MainComponent::handleInvalidPortNumberEntered()
@@ -221,6 +227,7 @@ void MainComponent::handleInvalidPortNumberEntered()
         "Invalid port number",
         "Error: you have entered an invalid UDP port number.",
         "OK");
+    DBG("Invalid port number entered.");
 }
 
 bool MainComponent::isValidOscPort(int port) const
