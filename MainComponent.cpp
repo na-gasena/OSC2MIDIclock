@@ -1,82 +1,111 @@
-#include "MainComponent.h"
+ï»¿#include "MainComponent.h"
 
+//==============================================================================
 MainComponent::MainComponent()
 {
-    // ƒeƒLƒXƒgƒGƒfƒBƒ^(ƒ|[ƒg”Ô†)
+    // ãƒãƒ¼ãƒˆç•ªå·å…¥åŠ›æ¬„
     portNumberField.setText("9001", juce::dontSendNotification);
     portNumberField.setInputRestrictions(5, "0123456789");
     addAndMakeVisible(portNumberField);
 
-    // ƒ‰ƒxƒ‹
+    // ãƒ©ãƒ™ãƒ«
     addAndMakeVisible(portNumberLabel);
     portNumberLabel.setJustificationType(juce::Justification::centredRight);
 
-    // Connectƒ{ƒ^ƒ“
+    // Connectãƒœã‚¿ãƒ³
     addAndMakeVisible(connectButton);
     connectButton.onClick = [this] { connectButtonClicked(); };
 
-    // ƒXƒe[ƒ^ƒXƒ‰ƒxƒ‹
+    // ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹ãƒ©ãƒ™ãƒ«
     addAndMakeVisible(connectionStatusLabel);
     connectionStatusLabel.setFont(juce::Font(15.0f, juce::Font::bold));
     connectionStatusLabel.setJustificationType(juce::Justification::centredLeft);
 
-    // OSCReceiver‚Ìİ’è
+    //=== MIDI Outputãƒ‡ãƒã‚¤ã‚¹é¸æŠç”¨ ===
+    addAndMakeVisible(midiOutputLabel);
+    midiOutputLabel.setJustificationType(juce::Justification::centredRight);
+
+    // ComboBox åˆæœŸåŒ–: åˆ©ç”¨å¯èƒ½ãªãƒ‡ãƒã‚¤ã‚¹ã‚’åˆ—æŒ™
+    auto devices = juce::MidiOutput::getAvailableDevices();
+    int index = 1; // ComboBoxã®Item IDã¯1ã‹ã‚‰
+    for (auto& device : devices)
+    {
+        midiOutputDeviceBox.addItem(device.name, index++);
+    }
+
+    // ComboBoxã®å¤‰åŒ–æ™‚ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯
+    midiOutputDeviceBox.onChange = [this]
+        {
+            midiDeviceBoxChanged();
+        };
+    addAndMakeVisible(midiOutputDeviceBox);
+
+    //=== OSCReceiverã®è¨­å®š ===
     oscReceiver.addListener(this, "/avatar/parameters/HeartRate");
     oscReceiver.registerFormatErrorHandler([this](const char* data, int dataSize)
         {
             DBG("Invalid OSC Packet: " << dataSize << " bytes");
         });
 
+    // åˆæœŸã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚µã‚¤ã‚º
     setSize(700, 400);
-    startTimer(50); // UIXV—p‚Ìƒ^ƒCƒ}[
+
+    // ã‚¿ã‚¤ãƒãƒ¼é–‹å§‹ (50msã”ã¨)
+    startTimer(50);
+
+    // ã‚¯ãƒ­ãƒƒã‚¯é€ä¿¡ç”¨
+    nextClockTime = 0.0;
+    lastBPM = 0.0;
 }
 
 MainComponent::~MainComponent()
 {
     stopTimer();
     oscReceiver.disconnect();
+
+    // MIDIãƒ‡ãƒã‚¤ã‚¹ã‚’é–‰ã˜ã‚‹
+    midiOutput.reset();
 }
 
+//==============================================================================
 void MainComponent::paint(juce::Graphics& g)
 {
-    // ”wŒi“h‚è‚Â‚Ô‚µ
+    // èƒŒæ™¯å¡—ã‚Šã¤ã¶ã—
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
 
-    // ‰æ–Ê‚Ìì‹Æ—Ìˆæ‚ğæ“¾iã‰º¶‰E10ƒsƒNƒZƒ‹‚¸‚Â—]”’‚ğ‚Æ‚é—áj
+    // ä¸Šéƒ¨GUIã®é ˜åŸŸã‚’é™¤ã„ãŸæ®‹ã‚Šã« BPMç”¨ã®å››è§’å½¢ã‚’æç”»
     auto area = getLocalBounds().reduced(10);
 
-    // ã•”‚ÌGUI—v‘f•ª‚ğœ‚¢‚½c‚è‚ğ centerArea ‚Æ‚·‚é
-    auto topArea = area.removeFromTop(40);
-    // ‚±‚±‚Í resized() ‚Å setBounds() ‚µ‚Ä‚¢‚é‚½‚ßApaint() ‚Å‚Í•`‰æ‚µ‚È‚¢
+    // ä¸Šéƒ¨40ãƒ”ã‚¯ã‚»ãƒ«ã‚’å–ã‚Šå‡ºã™
+    area.removeFromTop(40);
 
-    // c‚è‚Ì—Ìˆæ‚ğg‚Á‚ÄA’†‰›‚ÉBPM—p‚ÌlŠpŒ`‚ğ•`‰æ
-    auto centerArea = area; // 40ƒsƒNƒZƒ‹æ‚èœ‚¢‚½c‚è
-
+    // ä¸­å¤®ã«é…ç½®
     const int boxWidth = 200;
     const int boxHeight = 120;
-    // ’†‰›‚É”z’u‚·‚é
-    int boxX = centerArea.getX() + (centerArea.getWidth() - boxWidth) / 2;
-    int boxY = centerArea.getY() + (centerArea.getHeight() - boxHeight) / 2;
+
+    int boxX = area.getX() + (area.getWidth() - boxWidth) / 2;
+    int boxY = area.getY() + (area.getHeight() - boxHeight) / 2;
 
     juce::Rectangle<int> boxRect(boxX, boxY, boxWidth, boxHeight);
 
-    // lŠpŒ`‚Ì”wŒi
+    // å››è§’å½¢ã®èƒŒæ™¯
     g.setColour(juce::Colours::darkgrey);
     g.fillRoundedRectangle(boxRect.toFloat(), 10.0f);
 
-    // ˜gü
+    // æ ç·š
     g.setColour(juce::Colours::white);
     g.drawRoundedRectangle(boxRect.toFloat(), 10.0f, 3.0f);
 
-    // BPM‚Ì•¶š‚ğ•`‰æ
+    // ã€ŒBPMã€æ–‡å­—
     {
-        // ã•”‚ÉuBPMv
         auto labelArea = boxRect.removeFromTop(40);
         g.setFont(juce::Font(30.0f, juce::Font::bold));
         g.setColour(juce::Colours::white);
         g.drawFittedText("BPM", labelArea, juce::Justification::centred, 1);
+    }
 
-        // ‰º•”‚É”’l
+    // BPMæ•°å€¤
+    {
         g.setFont(juce::Font(40.0f, juce::Font::bold));
         g.setColour(juce::Colours::yellow);
         g.drawFittedText(juce::String(currentBPM),
@@ -86,25 +115,24 @@ void MainComponent::paint(juce::Graphics& g)
 
 void MainComponent::resized()
 {
-    // ‘S‘Ì—Ìˆæ
+    // å…¨ä½“é ˜åŸŸ
     auto area = getLocalBounds().reduced(10);
 
-    // ã•”40ƒsƒNƒZƒ‹‚ğæ‚èo‚·
+    // ä¸Šéƒ¨40ãƒ”ã‚¯ã‚»ãƒ«ã‚’å–ã‚Šå‡ºã™
     auto topArea = area.removeFromTop(40);
 
-    // ã•”‚ÌƒŒƒCƒAƒEƒg: 
-    // [ Label(UDP Port Number) ][ TextEditor(portNumberField) ][ ConnectButton ][ StatusLabel ]
-    {
-        // ¶‚©‚ç‡‚É”z’u‚µ‚Ä‚¢‚­
-        portNumberLabel.setBounds(topArea.removeFromLeft(120));
-        portNumberField.setBounds(topArea.removeFromLeft(80));
-        connectButton.setBounds(topArea.removeFromLeft(100));
-        connectionStatusLabel.setBounds(topArea);
-    }
+    // å·¦ã‹ã‚‰é †ã«é…ç½®ã—ã¦ã„ã
+    portNumberLabel.setBounds(topArea.removeFromLeft(120));
+    portNumberField.setBounds(topArea.removeFromLeft(80));
+    connectButton.setBounds(topArea.removeFromLeft(100));
 
-    // c‚è‚Í BPM•\¦—p‚Ì—Ìˆæipaint()‚Å•`‰æj
+    midiOutputLabel.setBounds(topArea.removeFromLeft(100));
+    midiOutputDeviceBox.setBounds(topArea.removeFromLeft(150));
+
+    connectionStatusLabel.setBounds(topArea);
 }
 
+//==============================================================================
 void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
 {
     auto address = message.getAddressPattern().toString();
@@ -116,16 +144,23 @@ void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
         {
             currentBPM = message[0].getInt32();
             DBG("Received BPM: " << currentBPM);
-            repaint(); // BPMXV
+            repaint(); // BPMè¡¨ç¤ºã‚’æ›´æ–°
         }
     }
 }
 
+//==============================================================================
 void MainComponent::timerCallback()
 {
+    // ç”»é¢å†æç”»
     repaint();
+
+    // MIDIã‚¯ãƒ­ãƒƒã‚¯é€ä¿¡å‡¦ç†
+    double currentTime = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    sendMidiClockIfNeeded(currentTime);
 }
 
+//==============================================================================
 void MainComponent::updateConnectionStatusLabel()
 {
     juce::String text;
@@ -140,6 +175,7 @@ void MainComponent::updateConnectionStatusLabel()
     connectionStatusLabel.setColour(juce::Label::textColourId, textColour);
 }
 
+//==============================================================================
 void MainComponent::connectButtonClicked()
 {
     if (!isConnected)
@@ -180,6 +216,69 @@ void MainComponent::connectButtonClicked()
     updateConnectionStatusLabel();
 }
 
+//==============================================================================
+void MainComponent::midiDeviceBoxChanged()
+{
+    // ComboBoxã®é¸æŠID (1ã€œ) ã‚’å–å¾—
+    auto selectedId = midiOutputDeviceBox.getSelectedId();
+    if (selectedId <= 0)
+    {
+        // ä½•ã‚‚é¸æŠã•ã‚Œã¦ã„ãªã„å ´åˆ
+        midiOutput.reset();
+        return;
+    }
+
+    // MIDI Outputãƒ‡ãƒã‚¤ã‚¹ä¸€è¦§ã‚’å–å¾—ã—ã¦ã€é¸æŠã•ã‚ŒãŸã‚‚ã®ã‚’ã‚ªãƒ¼ãƒ—ãƒ³
+    auto devices = juce::MidiOutput::getAvailableDevices();
+    int index = selectedId - 1; // IDã¯1å§‹ã¾ã‚Šãªã®ã§ -1
+
+    if (juce::isPositiveAndBelow(index, devices.size()))
+    {
+        auto deviceInfo = devices[index];
+        DBG("Opening MIDI device: " << deviceInfo.name);
+
+        // æ—¢å­˜ãƒ‡ãƒã‚¤ã‚¹ã‚’é–‰ã˜ã‚‹
+        midiOutput.reset();
+
+        // æ–°ã—ã„ãƒ‡ãƒã‚¤ã‚¹ã‚’é–‹ã
+        midiOutput = juce::MidiOutput::openDevice(deviceInfo.identifier);
+    }
+}
+
+//==============================================================================
+void MainComponent::sendMidiClockIfNeeded(double currentTime)
+{
+    // BPMã«å¿œã˜ã¦ã‚¯ãƒ­ãƒƒã‚¯é€ä¿¡
+    // BPMãŒ0ä»¥ä¸‹ã®å ´åˆã¯é€ä¿¡ã—ãªã„
+    if (currentBPM <= 0 || midiOutput == nullptr)
+        return;
+
+    // BPMãŒå¤‰ã‚ã£ãŸå ´åˆã¯ã‚¿ã‚¤ãƒŸãƒ³ã‚°ã‚’ãƒªã‚»ãƒƒãƒˆ
+    if (static_cast<double> (currentBPM) != lastBPM)
+    {
+        nextClockTime = currentTime; // æ¬¡ã®é€ä¿¡æ™‚åˆ»ã‚’"ä»Š"ã«ã™ã‚‹
+        lastBPM = static_cast<double> (currentBPM);
+    }
+
+    // 1æ‹(QuarterNote)ã‚ãŸã‚Š24ãƒ‘ãƒ«ã‚¹ â†’ 1åˆ†é–“ã§ (BPM * 24) ãƒ‘ãƒ«ã‚¹
+    // 1ç§’é–“ã« (BPM * 24 / 60) ãƒ‘ãƒ«ã‚¹
+    double pulsesPerSecond = (currentBPM * 24.0) / 60.0;
+
+    // currentTime >= nextClockTime ã«é”ã—ãŸã‚‰ã‚¯ãƒ­ãƒƒã‚¯ã‚’é€ä¿¡
+    // 1å›é€ä¿¡ã™ã‚‹ã”ã¨ã« nextClockTime ã‚’ 1/pulsesPerSecond é€²ã‚ã‚‹
+    while (currentTime >= nextClockTime)
+    {
+        // MIDIã‚¯ãƒ­ãƒƒã‚¯é€ä¿¡
+        midiOutput->sendMessageNow(juce::MidiMessage::midiClock());
+
+        nextClockTime += 1.0 / pulsesPerSecond;
+
+        // ä¸‡ä¸€BPMãŒä½ã™ããŸã‚Šã€é«˜è² è·ã§ã‚¿ã‚¤ãƒŸãƒ³ã‚°ãŒé£›ã‚“ã ã¨ãã«
+        // whileãƒ«ãƒ¼ãƒ—ã§è¿½ã„ã¤ãã‚ˆã†ã«ã—ã¦ã„ã‚‹
+    }
+}
+
+//==============================================================================
 void MainComponent::handleConnectError(int failedPort)
 {
     juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
