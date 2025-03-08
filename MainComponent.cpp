@@ -52,8 +52,8 @@ MainComponent::MainComponent()
     // 初期ウィンドウサイズ
     setSize(700, 400);
 
-    // タイマー開始 (50msごと)
-    startTimer(50);
+    // タイマー開始 (1msごと)
+    startTimer(1);
 
     // クロック送信用
     nextClockTime = 0.0;
