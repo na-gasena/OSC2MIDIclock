@@ -23,6 +23,9 @@ public:
     void addInvalidOSCPacket(const char* data, int dataSize);
     void clear();
 
+    /** 任意のテキストを一行追加する */
+    void addLine(const juce::String& text);
+
 private:
     juce::String getIndentationString(int level);
     void handleAsyncUpdate() override;

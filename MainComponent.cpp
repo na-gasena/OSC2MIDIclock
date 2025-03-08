@@ -109,6 +109,13 @@ void OSCLogListBox::clear()
     triggerAsyncUpdate();
 }
 
+// 任意のテキストを一行追加するメソッド
+void OSCLogListBox::addLine(const juce::String& text)
+{
+    oscLogList.add(text);
+    triggerAsyncUpdate(); // リスト更新を非同期で反映
+}
+
 juce::String OSCLogListBox::getIndentationString(int level)
 {
     return juce::String().paddedRight(' ', 2 * level);
@@ -163,6 +170,7 @@ MainComponent::MainComponent()
     startTimer(50); // 必要に応じてタイマーでUI更新
 }
 
+
 MainComponent::~MainComponent()
 {
     stopTimer();
@@ -188,21 +196,28 @@ void MainComponent::resized()
 
 void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
 {
-    DBG("Received OSC Message: " + message.getAddressPattern().toString());
+    auto address = message.getAddressPattern().toString();
+    DBG("Received OSC Message: " + address);
 
-    if (message.getAddressPattern().toString() == "/avatar/parameters/HeartRate")
+    // HeartRate の場合だけ表示を「BPM: xxx」にする
+    if (address == "/avatar/parameters/HeartRate")
     {
         if (message.size() > 0 && message[0].isInt32())
         {
-            int value = message[0].getInt32();
-            DBG("Received BPM: " << value);
-            // ここで BPM の値を用いて MIDI クロック送信などの処理を実装可能
+            int bpmValue = message[0].getInt32();
+            DBG("Received BPM: " << bpmValue);
+
+            // 「BPM: xxx」としてリストに追加
+            oscLogListBox.addLine("BPM: " + juce::String(bpmValue));
         }
     }
-
-    // 受信した OSC メッセージをリストに追加して GUI 表示
-    oscLogListBox.addOSCMessage(message);
+    else
+    {
+        // それ以外のアドレスは従来通りのログ表示
+        oscLogListBox.addOSCMessage(message);
+    }
 }
+
 
 void MainComponent::timerCallback()
 {
