@@ -25,7 +25,7 @@ private:
     bool isConnected = false;
 
     // GUI コンポーネント
-    juce::Label      portNumberLabel{ {}, "UDP Port Number:" };
+    juce::Label      portNumberLabel{ {}, "Port Number:" };
     juce::TextEditor portNumberField;
     juce::TextButton connectButton{ "Connect" };
     juce::Label      connectionStatusLabel{ {}, "Disconnected" };
@@ -42,7 +42,7 @@ private:
 
     // MIDIクロック送信用のタイミング管理
     double nextClockTime = 0.0;  // 次にクロックを送信する時刻（秒単位）
-    double lastBPM = 0.0;  // 前回処理時のBPMを記憶
+    double lastBPM = 0.0;        // 前回処理時のBPMを記憶
 
     // GUI 更新・制御メソッド
     void updateConnectionStatusLabel();

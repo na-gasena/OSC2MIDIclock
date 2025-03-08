@@ -6,6 +6,8 @@ MainComponent::MainComponent()
     // ポート番号入力欄
     portNumberField.setText("9001", juce::dontSendNotification);
     portNumberField.setInputRestrictions(5, "0123456789");
+    portNumberField.setJustification(juce::Justification::centred);  // テキスト中央ぞろえ
+    portNumberField.setFont(juce::Font(10.0f));
     addAndMakeVisible(portNumberField);
 
     // ラベル
@@ -80,8 +82,8 @@ void MainComponent::paint(juce::Graphics& g)
     area.removeFromTop(40);
 
     // 中央に配置
-    const int boxWidth = 200;
-    const int boxHeight = 120;
+    const int boxWidth = 500;
+    const int boxHeight = 300;
 
     int boxX = area.getX() + (area.getWidth() - boxWidth) / 2;
     int boxY = area.getY() + (area.getHeight() - boxHeight) / 2;
@@ -89,7 +91,7 @@ void MainComponent::paint(juce::Graphics& g)
     juce::Rectangle<int> boxRect(boxX, boxY, boxWidth, boxHeight);
 
     // 四角形の背景
-    g.setColour(juce::Colours::darkgrey);
+    g.setColour(juce::Colours::transparentBlack);
     g.fillRoundedRectangle(boxRect.toFloat(), 10.0f);
 
     // 枠線
@@ -98,16 +100,21 @@ void MainComponent::paint(juce::Graphics& g)
 
     // 「BPM」文字
     {
-        auto labelArea = boxRect.removeFromTop(40);
-        g.setFont(juce::Font(30.0f, juce::Font::bold));
+        auto labelArea = boxRect.removeFromTop(90);
+        g.setFont(juce::Font(90.0f, juce::Font::bold));
         g.setColour(juce::Colours::white);
         g.drawFittedText("BPM", labelArea, juce::Justification::centred, 1);
     }
 
     // BPM数値
     {
-        g.setFont(juce::Font(40.0f, juce::Font::bold));
-        g.setColour(juce::Colours::yellow);
+        // 垂直方向の位置調整
+        int verticalOffset = -20; // ここで垂直方向のオフセットを設定
+
+        boxRect.translate(0, verticalOffset); // 垂直方向にオフセットを適用
+
+        g.setFont(juce::Font(250.0f, juce::Font::bold));
+        g.setColour(juce::Colours::white);
         g.drawFittedText(juce::String(currentBPM),
             boxRect, juce::Justification::centred, 1);
     }
@@ -121,9 +128,10 @@ void MainComponent::resized()
     // 上部40ピクセルを取り出す
     auto topArea = area.removeFromTop(40);
 
-    // 左から順に配置していく
+    // 左から順に配置
     portNumberLabel.setBounds(topArea.removeFromLeft(120));
     portNumberField.setBounds(topArea.removeFromLeft(80));
+    topArea.removeFromLeft(10); // ← Connectボタンとの間に余白（10px）を追加
     connectButton.setBounds(topArea.removeFromLeft(100));
 
     midiOutputLabel.setBounds(topArea.removeFromLeft(100));
@@ -149,7 +157,6 @@ void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
     }
 }
 
-//==============================================================================
 void MainComponent::timerCallback()
 {
     // 画面再描画
@@ -160,7 +167,6 @@ void MainComponent::timerCallback()
     sendMidiClockIfNeeded(currentTime);
 }
 
-//==============================================================================
 void MainComponent::updateConnectionStatusLabel()
 {
     juce::String text;
@@ -175,7 +181,6 @@ void MainComponent::updateConnectionStatusLabel()
     connectionStatusLabel.setColour(juce::Label::textColourId, textColour);
 }
 
-//==============================================================================
 void MainComponent::connectButtonClicked()
 {
     if (!isConnected)
@@ -216,7 +221,6 @@ void MainComponent::connectButtonClicked()
     updateConnectionStatusLabel();
 }
 
-//==============================================================================
 void MainComponent::midiDeviceBoxChanged()
 {
     // ComboBoxの選択ID (1〜) を取得
@@ -245,7 +249,6 @@ void MainComponent::midiDeviceBoxChanged()
     }
 }
 
-//==============================================================================
 void MainComponent::sendMidiClockIfNeeded(double currentTime)
 {
     // BPMに応じてクロック送信
@@ -254,10 +257,10 @@ void MainComponent::sendMidiClockIfNeeded(double currentTime)
         return;
 
     // BPMが変わった場合はタイミングをリセット
-    if (static_cast<double> (currentBPM) != lastBPM)
+    if (static_cast<double>(currentBPM) != lastBPM)
     {
         nextClockTime = currentTime; // 次の送信時刻を"今"にする
-        lastBPM = static_cast<double> (currentBPM);
+        lastBPM = static_cast<double>(currentBPM);
     }
 
     // 1拍(QuarterNote)あたり24パルス → 1分間で (BPM * 24) パルス
@@ -272,13 +275,9 @@ void MainComponent::sendMidiClockIfNeeded(double currentTime)
         midiOutput->sendMessageNow(juce::MidiMessage::midiClock());
 
         nextClockTime += 1.0 / pulsesPerSecond;
-
-        // 万一BPMが低すぎたり、高負荷でタイミングが飛んだときに
-        // whileループで追いつくようにしている
     }
 }
 
-//==============================================================================
 void MainComponent::handleConnectError(int failedPort)
 {
     juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
