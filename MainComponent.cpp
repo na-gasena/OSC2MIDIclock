@@ -1,175 +1,35 @@
 #include "MainComponent.h"
 
-//==============================================================================
-// OSCLogListBox の実装
-//==============================================================================
-OSCLogListBox::OSCLogListBox()
-{
-    setModel(this);
-}
-
-OSCLogListBox::~OSCLogListBox() {}
-
-int OSCLogListBox::getNumRows()
-{
-    return oscLogList.size();
-}
-
-void OSCLogListBox::paintListBoxItem(int row, juce::Graphics& g, int width, int height, bool rowIsSelected)
-{
-    juce::ignoreUnused(rowIsSelected);
-    if (juce::isPositiveAndBelow(row, oscLogList.size()))
-    {
-        g.setColour(juce::Colours::white);
-        g.drawText(oscLogList[row],
-            juce::Rectangle<int>(width, height).reduced(4, 0),
-            juce::Justification::centredLeft, true);
-    }
-}
-
-void OSCLogListBox::addOSCMessage(const juce::OSCMessage& message, int level)
-{
-    oscLogList.add(getIndentationString(level)
-        + "- osc message, address = '"
-        + message.getAddressPattern().toString()
-        + "', "
-        + juce::String(message.size())
-        + " argument(s)");
-
-    if (!message.isEmpty())
-    {
-        for (auto* arg = message.begin(); arg != message.end(); ++arg)
-            addOSCMessageArgument(*arg, level + 1);
-    }
-
-    triggerAsyncUpdate();
-}
-
-void OSCLogListBox::addOSCBundle(const juce::OSCBundle& bundle, int level)
-{
-    juce::OSCTimeTag timeTag = bundle.getTimeTag();
-    oscLogList.add(getIndentationString(level)
-        + "- osc bundle, time tag = "
-        + timeTag.toTime().toString(true, true, true, true));
-
-    for (auto* element = bundle.begin(); element != bundle.end(); ++element)
-    {
-        if (element->isMessage())
-            addOSCMessage(element->getMessage(), level + 1);
-        else if (element->isBundle())
-            addOSCBundle(element->getBundle(), level + 1);
-    }
-
-    triggerAsyncUpdate();
-}
-
-void OSCLogListBox::addOSCMessageArgument(const juce::OSCArgument& arg, int level)
-{
-    juce::String typeAsString;
-    juce::String valueAsString;
-
-    if (arg.isFloat32())
-    {
-        typeAsString = "float32";
-        valueAsString = juce::String(arg.getFloat32());
-    }
-    else if (arg.isInt32())
-    {
-        typeAsString = "int32";
-        valueAsString = juce::String(arg.getInt32());
-    }
-    else if (arg.isString())
-    {
-        typeAsString = "string";
-        valueAsString = arg.getString();
-    }
-    else if (arg.isBlob())
-    {
-        typeAsString = "blob";
-        auto& blob = arg.getBlob();
-        valueAsString = juce::String::fromUTF8((const char*)blob.getData(), (int)blob.getSize());
-    }
-    else
-    {
-        typeAsString = "(unknown)";
-    }
-
-    oscLogList.add(getIndentationString(level + 1) + "- " + typeAsString.paddedRight(' ', 12) + valueAsString);
-}
-
-void OSCLogListBox::addInvalidOSCPacket(const char* /*data*/, int dataSize)
-{
-    oscLogList.add("- (" + juce::String(dataSize) + " bytes with invalid format)");
-    triggerAsyncUpdate();
-}
-
-void OSCLogListBox::clear()
-{
-    oscLogList.clear();
-    triggerAsyncUpdate();
-}
-
-// 任意のテキストを一行追加するメソッド
-void OSCLogListBox::addLine(const juce::String& text)
-{
-    oscLogList.add(text);
-    triggerAsyncUpdate(); // リスト更新を非同期で反映
-}
-
-juce::String OSCLogListBox::getIndentationString(int level)
-{
-    return juce::String().paddedRight(' ', 2 * level);
-}
-
-void OSCLogListBox::handleAsyncUpdate()
-{
-    updateContent();
-    scrollToEnsureRowIsOnscreen(oscLogList.size() - 1);
-    repaint();
-}
-
-
-//==============================================================================
-// MainComponent の実装
-//==============================================================================
 MainComponent::MainComponent()
 {
-    // GUI コンポーネントの配置
-    portNumberLabel.setBounds(10, 18, 130, 25);
-    addAndMakeVisible(portNumberLabel);
-
-    portNumberField.setText("8000", juce::dontSendNotification);
-    portNumberField.setBounds(140, 18, 100, 25);
+    // テキストエディタ(ポート番号)
+    portNumberField.setText("9001", juce::dontSendNotification);
     portNumberField.setInputRestrictions(5, "0123456789");
     addAndMakeVisible(portNumberField);
 
-    connectButton.setBounds(250, 18, 100, 25);
+    // ラベル
+    addAndMakeVisible(portNumberLabel);
+    portNumberLabel.setJustificationType(juce::Justification::centredRight);
+
+    // Connectボタン
     addAndMakeVisible(connectButton);
     connectButton.onClick = [this] { connectButtonClicked(); };
 
-    clearButton.setBounds(360, 18, 60, 25);
-    addAndMakeVisible(clearButton);
-    clearButton.onClick = [this] { clearButtonClicked(); };
-
-    connectionStatusLabel.setBounds(430, 18, 240, 25);
-    updateConnectionStatusLabel();
+    // ステータスラベル
     addAndMakeVisible(connectionStatusLabel);
+    connectionStatusLabel.setFont(juce::Font(15.0f, juce::Font::bold));
+    connectionStatusLabel.setJustificationType(juce::Justification::centredLeft);
 
-    // OSCLogListBox の配置
-    oscLogListBox.setBounds(0, 60, 700, 340);
-    addAndMakeVisible(oscLogListBox);
-
-    // OSCReceiver の設定（/avatar/parameters/HeartRate に限定）
+    // OSCReceiverの設定
     oscReceiver.addListener(this, "/avatar/parameters/HeartRate");
     oscReceiver.registerFormatErrorHandler([this](const char* data, int dataSize)
         {
-            oscLogListBox.addInvalidOSCPacket(data, dataSize);
+            DBG("Invalid OSC Packet: " << dataSize << " bytes");
         });
 
     setSize(700, 400);
-    startTimer(50); // 必要に応じてタイマーでUI更新
+    startTimer(50); // UI更新用のタイマー
 }
-
 
 MainComponent::~MainComponent()
 {
@@ -179,66 +39,105 @@ MainComponent::~MainComponent()
 
 void MainComponent::paint(juce::Graphics& g)
 {
+    // 背景塗りつぶし
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
 
+    // 画面の作業領域を取得（上下左右10ピクセルずつ余白をとる例）
+    auto area = getLocalBounds().reduced(10);
+
+    // 上部のGUI要素分を除いた残りを centerArea とする
+    auto topArea = area.removeFromTop(40);
+    // ここは resized() で setBounds() しているため、paint() では描画しない
+
+    // 残りの領域を使って、中央にBPM用の四角形を描画
+    auto centerArea = area; // 40ピクセル取り除いた残り
+
+    const int boxWidth = 200;
+    const int boxHeight = 120;
+    // 中央に配置する
+    int boxX = centerArea.getX() + (centerArea.getWidth() - boxWidth) / 2;
+    int boxY = centerArea.getY() + (centerArea.getHeight() - boxHeight) / 2;
+
+    juce::Rectangle<int> boxRect(boxX, boxY, boxWidth, boxHeight);
+
+    // 四角形の背景
+    g.setColour(juce::Colours::darkgrey);
+    g.fillRoundedRectangle(boxRect.toFloat(), 10.0f);
+
+    // 枠線
     g.setColour(juce::Colours::white);
-    g.setFont(20.0f);
-    if (isConnected)
-        g.drawText("OSC Connected", getLocalBounds(), juce::Justification::centred, true);
-    else
-        g.drawText("OSC Not Connected", getLocalBounds(), juce::Justification::centred, true);
+    g.drawRoundedRectangle(boxRect.toFloat(), 10.0f, 3.0f);
+
+    // BPMの文字を描画
+    {
+        // 上部に「BPM」
+        auto labelArea = boxRect.removeFromTop(40);
+        g.setFont(juce::Font(30.0f, juce::Font::bold));
+        g.setColour(juce::Colours::white);
+        g.drawFittedText("BPM", labelArea, juce::Justification::centred, 1);
+
+        // 下部に数値
+        g.setFont(juce::Font(40.0f, juce::Font::bold));
+        g.setColour(juce::Colours::yellow);
+        g.drawFittedText(juce::String(currentBPM),
+            boxRect, juce::Justification::centred, 1);
+    }
 }
 
 void MainComponent::resized()
 {
-    // レイアウト更新（必要に応じてここで再配置可能）
+    // 全体領域
+    auto area = getLocalBounds().reduced(10);
+
+    // 上部40ピクセルを取り出す
+    auto topArea = area.removeFromTop(40);
+
+    // 上部のレイアウト: 
+    // [ Label(UDP Port Number) ][ TextEditor(portNumberField) ][ ConnectButton ][ StatusLabel ]
+    {
+        // 左から順に配置していく
+        portNumberLabel.setBounds(topArea.removeFromLeft(120));
+        portNumberField.setBounds(topArea.removeFromLeft(80));
+        connectButton.setBounds(topArea.removeFromLeft(100));
+        connectionStatusLabel.setBounds(topArea);
+    }
+
+    // 残りは BPM表示用の領域（paint()で描画）
 }
 
 void MainComponent::oscMessageReceived(const juce::OSCMessage& message)
 {
     auto address = message.getAddressPattern().toString();
-    DBG("Received OSC Message: " + address);
+    DBG("Received OSC Message: " << address);
 
-    // HeartRate の場合だけ表示を「BPM: xxx」にする
     if (address == "/avatar/parameters/HeartRate")
     {
         if (message.size() > 0 && message[0].isInt32())
         {
-            int bpmValue = message[0].getInt32();
-            DBG("Received BPM: " << bpmValue);
-
-            // 「BPM: xxx」としてリストに追加
-            oscLogListBox.addLine("BPM: " + juce::String(bpmValue));
+            currentBPM = message[0].getInt32();
+            DBG("Received BPM: " << currentBPM);
+            repaint(); // BPM更新
         }
-    }
-    else
-    {
-        // それ以外のアドレスは従来通りのログ表示
-        oscLogListBox.addOSCMessage(message);
     }
 }
 
-
 void MainComponent::timerCallback()
 {
-    // 定期的な再描画など（ここでは paint() を更新）
     repaint();
 }
 
 void MainComponent::updateConnectionStatusLabel()
 {
-    juce::String text = "Status: ";
+    juce::String text;
     if (isConnected)
-        text += "Connected to UDP port " + portNumberField.getText();
+        text = "Connected to UDP port " + portNumberField.getText();
     else
-        text += "Disconnected";
+        text = "Disconnected";
 
     auto textColour = isConnected ? juce::Colours::green : juce::Colours::red;
 
     connectionStatusLabel.setText(text, juce::dontSendNotification);
-    connectionStatusLabel.setFont(juce::Font(15.00f, juce::Font::bold));
     connectionStatusLabel.setColour(juce::Label::textColourId, textColour);
-    connectionStatusLabel.setJustificationType(juce::Justification::centredRight);
 }
 
 void MainComponent::connectButtonClicked()
@@ -279,11 +178,6 @@ void MainComponent::connectButtonClicked()
     }
 
     updateConnectionStatusLabel();
-}
-
-void MainComponent::clearButtonClicked()
-{
-    oscLogListBox.clear();
 }
 
 void MainComponent::handleConnectError(int failedPort)
